@@ -128,7 +128,18 @@ function MorphingParticles({ shape }: { shape: string }) {
       cols[i * 3 + 1] = colorObj.g;
       cols[i * 3 + 2] = colorObj.b;
     }
-    return { sphere, wave, ring, globe, matrix, colors: cols };
+    
+    // --- 關鍵修正區 ---
+    // 必須明確指定 return 物件的 key: value
+    // 之前因為寫了 { sphere, wave... } 導致 TypeScript 找不到變數而報錯
+    return { 
+        sphere: spherePos, 
+        wave: wavePos, 
+        ring: ringPos, 
+        globe: globePos, 
+        matrix: matrixPos, 
+        colors: cols 
+    };
   }, []);
 
   useEffect(() => {
@@ -266,8 +277,8 @@ export default function Home() {
              <div className="relative">
                 {/* 頭像框 (需在 public 資料夾放入 avatar.jpg) */}
                 <div className="w-24 h-24 md:w-32 md:h-32 rounded-full border-2 border-[#00FF41] p-1 mb-6 overflow-hidden bg-gray-800">
-                    {/* <img src="/avatar.jpg" alt="Oliver" className="w-full h-full object-cover rounded-full" /> */}
-                    <div className="w-full h-full bg-gray-700 flex items-center justify-center text-gray-500 text-xs">Avatar.jpg</div>
+                    <img src="/avatar.jpg" alt="Oliver" className="w-full h-full object-cover rounded-full" />
+                    {/* <div className="w-full h-full bg-gray-700 flex items-center justify-center text-gray-500 text-xs">Avatar.jpg</div> */}
                 </div>
                 <h1 className="text-5xl md:text-7xl font-bold mb-4 bg-clip-text text-transparent bg-gradient-to-r from-white to-gray-500">
                   {CONTENT_DATA.intro.title}
@@ -293,8 +304,8 @@ export default function Home() {
              {/* 公司 Logo (需在 public 放入 logo.png) */}
              <div className="flex items-center gap-4 mb-6">
                 <div className="w-16 h-16 bg-white rounded-lg p-2 flex items-center justify-center">
-                   {/* <img src="/logo.png" alt="Lloyds" className="w-full h-auto" /> */}
-                   <span className="text-black font-bold text-xs">Logo.png</span>
+                   <img src="/logo.png" alt="Lloyds" className="w-full h-auto" />
+                   {/* <span className="text-black font-bold text-xs">Logo.png</span> */}
                 </div>
                 <div>
                    <h2 className="text-2xl font-bold text-white">{CONTENT_DATA.company.title}</h2>
