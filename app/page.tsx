@@ -63,14 +63,14 @@ function MorphingParticles({ shape }: { shape: string }) {
     <bufferAttribute
       attach="attributes-position"
       count={count}
-      array={spherePositions} // 直接使用我們 memo 計算好的陣列
+      array={spherePositions}
       itemSize={3}
     />
   </bufferGeometry>
   <pointsMaterial 
     size={0.035} 
     color="#00FF41" 
-    transparent 
+    transparent={true} 
     opacity={0.6} 
     sizeAttenuation={true} 
   />
