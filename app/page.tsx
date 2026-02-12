@@ -7,7 +7,7 @@ import { OrbitControls, Stars } from "@react-three/drei";
 
 // --- 資料定義區 ---
 
-// 1. 章節定義 (對應捲動進度)
+// 1. 章節定義 (對應捲動進度與 ID)
 const SECTIONS = [
   { id: "intro", title: "About Me", sub: "個人簡介" },
   { id: "company", title: "Company", sub: "諾億保險經紀人" },
@@ -65,29 +65,28 @@ const CONTENT_DATA = {
 // --- 3D 粒子組件 ---
 
 function MorphingParticles({ shape }: { shape: string }) {
-  const count = 2500; // 增加粒子數以提升精細度
+  const count = 3000; // 粒子數量
   const mesh = useRef<THREE.Points>(null);
   const geoRef = useRef<THREE.BufferGeometry>(null);
 
   const { sphere, wave, ring, globe, matrix, colors } = useMemo(() => {
     const spherePos = new Float32Array(count * 3);
-    const wavePos = new Float32Array(count * 3); // 海浪 (Company)
-    const ringPos = new Float32Array(count * 3); // 圓環 (Service)
-    const globePos = new Float32Array(count * 3); // 地球 (Invest)
-    const matrixPos = new Float32Array(count * 3); // 矩陣 (AI)
+    const wavePos = new Float32Array(count * 3);
+    const ringPos = new Float32Array(count * 3);
+    const globePos = new Float32Array(count * 3);
+    const matrixPos = new Float32Array(count * 3);
     const cols = new Float32Array(count * 3);
     const colorObj = new THREE.Color();
 
     for (let i = 0; i < count; i++) {
-      // 1. Sphere (球體) - 用於個人簡介
+      // 1. Sphere (球體)
       const phi = Math.acos(-1 + (2 * i) / count);
       const theta = Math.sqrt(count * Math.PI) * phi;
       spherePos[i * 3] = Math.cos(theta) * Math.sin(phi) * 2.5;
       spherePos[i * 3 + 1] = Math.sin(theta) * Math.sin(phi) * 2.5;
       spherePos[i * 3 + 2] = Math.cos(phi) * 2.5;
 
-      // 2. Wave (海浪) - 用於公司 (海豚意象)
-      // 讓粒子形成波浪狀的流動平面
+      // 2. Wave (海浪)
       const x = (i / count) * 10 - 5; 
       const y = Math.sin(x * 2) * 0.5 + (Math.random() - 0.5) * 2;
       const z = (i % 20) * 0.2 - 2;
@@ -95,43 +94,38 @@ function MorphingParticles({ shape }: { shape: string }) {
       wavePos[i * 3 + 1] = y;
       wavePos[i * 3 + 2] = z;
 
-      // 3. Ring (防護環) - 用於金融服務
-      const angle = (i / count) * Math.PI * 2 * 3; // 繞三圈
+      // 3. Ring (圓環)
+      const angle = (i / count) * Math.PI * 2 * 3; 
       const radius = 3 + Math.random() * 0.5;
       ringPos[i * 3] = Math.cos(angle) * radius;
-      ringPos[i * 3 + 1] = (i / count) * 4 - 2; // 螺旋上升
+      ringPos[i * 3 + 1] = (i / count) * 4 - 2; 
       ringPos[i * 3 + 2] = Math.sin(angle) * radius;
 
-      // 4. Globe (地球儀) - 用於投資 (地圖)
-      // 這裡我們做一個空心的球，但是點比較密集，模擬地球
+      // 4. Globe (地球儀)
       const gPhi = Math.acos(-1 + (2 * i) / count);
       const gTheta = Math.sqrt(count * Math.PI) * gPhi;
       globePos[i * 3] = Math.cos(gTheta) * Math.sin(gPhi) * 3;
       globePos[i * 3 + 1] = Math.sin(gTheta) * Math.sin(gPhi) * 3;
       globePos[i * 3 + 2] = Math.cos(gPhi) * 3;
 
-      // 5. Matrix (代碼瀑布) - 用於 AI
-      matrixPos[i * 3] = (Math.random() - 0.5) * 8; // 寬度隨機
-      matrixPos[i * 3 + 1] = (Math.random() - 0.5) * 8; // 高度隨機
-      matrixPos[i * 3 + 2] = (Math.random() - 0.5) * 8; // 深度隨機
-      // 讓它看起來像垂直的線條
+      // 5. Matrix (矩陣)
+      matrixPos[i * 3] = (Math.random() - 0.5) * 8; 
+      matrixPos[i * 3 + 1] = (Math.random() - 0.5) * 8; 
+      matrixPos[i * 3 + 2] = (Math.random() - 0.5) * 8; 
       if (i % 3 === 0) {
          matrixPos[i * 3] = Math.floor(i / 100) * 0.5 - 4;
          matrixPos[i * 3 + 1] = (i % 100) * 0.1 - 5;
          matrixPos[i * 3 + 2] = 0;
       }
 
-      // Color: 漸層色
+      // 顏色
       const pct = i / count;
-      colorObj.setHSL(0.4 + pct * 0.2, 0.8, 0.6); // 綠色到青色
+      colorObj.setHSL(0.4 + pct * 0.2, 0.8, 0.6);
       cols[i * 3] = colorObj.r;
       cols[i * 3 + 1] = colorObj.g;
       cols[i * 3 + 2] = colorObj.b;
     }
     
-    // --- 關鍵修正區 ---
-    // 必須明確指定 return 物件的 key: value
-    // 之前因為寫了 { sphere, wave... } 導致 TypeScript 找不到變數而報錯
     return { 
         sphere: spherePos, 
         wave: wavePos, 
@@ -158,10 +152,12 @@ function MorphingParticles({ shape }: { shape: string }) {
         case "service": target = ring; break;
         case "invest": target = globe; break;
         case "ai": target = matrix; break;
-        default: target = sphere; break;
+        default: target = sphere; break; // 預設為球體 (intro)
       }
 
       const currentPos = mesh.current.geometry.attributes.position.array as Float32Array;
+      
+      // 粒子變形動畫
       gsap.to(currentPos, {
         duration: 2.5,
         endArray: target as any,
@@ -171,10 +167,9 @@ function MorphingParticles({ shape }: { shape: string }) {
         },
       });
       
-      // 粒子整體位置偏移 (讓出右邊空間)
-      const xOffset = shape === "intro" ? 0 : -2;
+      // 修正：粒子位置始終靠左 (-2.5)，不再根據區塊移動，保持左圖右文的平衡
       gsap.to(mesh.current.position, {
-        x: xOffset,
+        x: -2.5, 
         duration: 2,
         ease: "power2.inOut"
       });
@@ -184,7 +179,6 @@ function MorphingParticles({ shape }: { shape: string }) {
   useFrame((state) => {
     if (mesh.current) {
       mesh.current.rotation.y += 0.002;
-      // 滑鼠視差
       mesh.current.rotation.x = THREE.MathUtils.lerp(mesh.current.rotation.x, state.mouse.y * 0.1, 0.05);
       mesh.current.rotation.y = THREE.MathUtils.lerp(mesh.current.rotation.y, state.mouse.x * 0.1 + (state.clock.elapsedTime * 0.05), 0.05);
     }
@@ -193,7 +187,7 @@ function MorphingParticles({ shape }: { shape: string }) {
   return (
     <points ref={mesh}>
       <bufferGeometry ref={geoRef} />
-      <pointsMaterial size={0.05} vertexColors={true} transparent opacity={0.8} blending={THREE.AdditiveBlending} sizeAttenuation />
+      <pointsMaterial size={0.04} vertexColors={true} transparent opacity={0.8} blending={THREE.AdditiveBlending} sizeAttenuation />
     </points>
   );
 }
@@ -204,30 +198,37 @@ export default function Home() {
   const [activeSection, setActiveSection] = useState("intro");
   const [showDashboard, setShowDashboard] = useState(false);
 
-  // 捲動監聽：決定目前在哪個章節
+  // 捲動監聽
   useEffect(() => {
     const handleScroll = () => {
       const scrollY = window.scrollY;
       const h = window.innerHeight;
       
-      // 簡單的區塊判斷邏輯
-      if (scrollY < h * 0.5) setActiveSection("intro");
-      else if (scrollY < h * 1.5) setActiveSection("company");
-      else if (scrollY < h * 2.5) setActiveSection("service");
-      else if (scrollY < h * 3.5) setActiveSection("invest");
+      // 調整判斷閾值，讓切換更靈敏
+      if (scrollY < h * 0.6) setActiveSection("intro");
+      else if (scrollY < h * 1.6) setActiveSection("company");
+      else if (scrollY < h * 2.6) setActiveSection("service");
+      else if (scrollY < h * 3.6) setActiveSection("invest");
       else setActiveSection("ai");
     };
     window.addEventListener("scroll", handleScroll);
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
+  // 平滑捲動功能
+  const scrollToSection = (id: string) => {
+    const element = document.getElementById(id);
+    if (element) {
+      element.scrollIntoView({ behavior: "smooth" });
+    }
+  };
+
   return (
     <main className="relative bg-[#05070a] font-sans text-white overflow-x-hidden selection:bg-[#00FF41] selection:text-black">
       
-      {/* 1. 頂部導航 (Apple Style Glass) */}
+      {/* 1. 頂部導航 */}
       <nav className="fixed top-0 w-full z-50 bg-black/60 backdrop-blur-md border-b border-white/10 px-6 py-4 flex justify-between items-center transition-all">
-        <div className="flex items-center gap-3">
-            {/* 這裡可以放你的 Logo 圖片，暫時用文字代替 */}
+        <div className="flex items-center gap-3 cursor-pointer" onClick={() => scrollToSection("intro")}>
             <div className="w-8 h-8 bg-gradient-to-br from-[#00FF41] to-blue-500 rounded-full flex items-center justify-center font-bold text-black text-xs">
                 O
             </div>
@@ -235,9 +236,13 @@ export default function Home() {
         </div>
         <div className="hidden md:flex gap-6 text-sm font-medium text-gray-400">
           {SECTIONS.map((s) => (
-            <span key={s.id} className={`${activeSection === s.id ? "text-[#00FF41]" : "hover:text-white"} transition-colors cursor-pointer`}>
+            <button 
+              key={s.id} 
+              onClick={() => scrollToSection(s.id)}
+              className={`${activeSection === s.id ? "text-[#00FF41]" : "hover:text-white"} transition-colors cursor-pointer bg-transparent border-none`}
+            >
               {s.title}
-            </span>
+            </button>
           ))}
         </div>
         <button className="bg-white/10 hover:bg-[#00FF41] hover:text-black border border-white/20 px-4 py-2 rounded-full text-xs transition-all">
@@ -245,13 +250,12 @@ export default function Home() {
         </button>
       </nav>
 
-      {/* 2. 背景 3D Canvas (固定不動) */}
+      {/* 2. 背景 3D Canvas */}
       <div className="fixed inset-0 z-0 pointer-events-none">
         <Canvas camera={{ position: [0, 0, 8] }}>
           <color attach="background" args={["#05070a"]} />
           <Stars radius={100} count={3000} factor={4} fade />
           <MorphingParticles shape={activeSection} />
-          {/* 加入環境光讓粒子更有質感 */}
           <ambientLight intensity={0.5} />
         </Canvas>
       </div>
@@ -259,7 +263,11 @@ export default function Home() {
       {/* 3. 左側進度條 */}
       <div className="fixed left-8 top-1/2 -translate-y-1/2 z-40 hidden md:flex flex-col gap-6">
         {SECTIONS.map((s) => (
-          <div key={s.id} className="group flex items-center gap-4 cursor-pointer">
+          <div 
+            key={s.id} 
+            className="group flex items-center gap-4 cursor-pointer"
+            onClick={() => scrollToSection(s.id)}
+          >
             <div className={`w-1.5 h-1.5 rounded-full transition-all duration-500 ${activeSection === s.id ? "bg-[#00FF41] scale-150 ring-4 ring-[#00FF41]/20" : "bg-white/20 group-hover:bg-white"}`} />
             <span className={`text-xs tracking-widest transition-all duration-500 ${activeSection === s.id ? "opacity-100 translate-x-0" : "opacity-0 -translate-x-4"}`}>
               {s.sub}
@@ -268,17 +276,15 @@ export default function Home() {
         ))}
       </div>
 
-      {/* 4. 內容區塊 (Scrollable) */}
+      {/* 4. 內容區塊 (加入 ID 以供跳轉) */}
       <div className="relative z-10">
         
-        {/* Section 1: Intro (個人簡介) */}
-        <section className="h-screen w-full flex items-center justify-end px-4 md:px-20">
+        {/* Section 1: Intro */}
+        <section id="intro" className="h-screen w-full flex items-center justify-end px-4 md:px-20">
           <div className="w-full md:w-1/2 max-w-xl">
-             <div className="relative">
-                {/* 頭像框 (需在 public 資料夾放入 avatar.jpg) */}
+             <div className="relative animate-fade-in">
                 <div className="w-24 h-24 md:w-32 md:h-32 rounded-full border-2 border-[#00FF41] p-1 mb-6 overflow-hidden bg-gray-800">
                     <img src="/avatar.jpg" alt="Oliver" className="w-full h-full object-cover rounded-full" />
-                    {/* <div className="w-full h-full bg-gray-700 flex items-center justify-center text-gray-500 text-xs">Avatar.jpg</div> */}
                 </div>
                 <h1 className="text-5xl md:text-7xl font-bold mb-4 bg-clip-text text-transparent bg-gradient-to-r from-white to-gray-500">
                   {CONTENT_DATA.intro.title}
@@ -298,14 +304,12 @@ export default function Home() {
           </div>
         </section>
 
-        {/* Section 2: Company (公司/海豚) */}
-        <section className="h-screen w-full flex items-center justify-end px-4 md:px-20 bg-gradient-to-b from-transparent to-black/20">
+        {/* Section 2: Company */}
+        <section id="company" className="h-screen w-full flex items-center justify-end px-4 md:px-20 bg-gradient-to-b from-transparent to-black/20">
           <div className="w-full md:w-1/2 max-w-xl p-8 bg-white/5 backdrop-blur-xl rounded-3xl border border-white/10 hover:border-[#00FF41]/50 transition-all duration-500">
-             {/* 公司 Logo (需在 public 放入 logo.png) */}
              <div className="flex items-center gap-4 mb-6">
                 <div className="w-16 h-16 bg-white rounded-lg p-2 flex items-center justify-center">
                    <img src="/logo.png" alt="Lloyds" className="w-full h-auto" />
-                   {/* <span className="text-black font-bold text-xs">Logo.png</span> */}
                 </div>
                 <div>
                    <h2 className="text-2xl font-bold text-white">{CONTENT_DATA.company.title}</h2>
@@ -325,8 +329,8 @@ export default function Home() {
           </div>
         </section>
 
-        {/* Section 3: Services (金融服務) */}
-        <section className="h-screen w-full flex items-center justify-end px-4 md:px-20">
+        {/* Section 3: Services */}
+        <section id="service" className="h-screen w-full flex items-center justify-end px-4 md:px-20">
             <div className="w-full md:w-1/2 max-w-xl">
                 <div className="mb-10">
                     <h2 className="text-4xl font-bold mb-2">{CONTENT_DATA.service.title}</h2>
@@ -344,8 +348,8 @@ export default function Home() {
             </div>
         </section>
 
-        {/* Section 4: Invest (投資佈局/地圖) */}
-        <section className="h-screen w-full flex items-center justify-end px-4 md:px-20">
+        {/* Section 4: Invest */}
+        <section id="invest" className="h-screen w-full flex items-center justify-end px-4 md:px-20">
             <div className="w-full md:w-1/2 max-w-xl text-right">
                 <h2 className="text-4xl font-bold mb-4 text-white">
                     {CONTENT_DATA.invest.title}
@@ -374,8 +378,8 @@ export default function Home() {
             </div>
         </section>
 
-        {/* Section 5: AI Lab (代碼矩陣) */}
-        <section className="h-screen w-full flex items-center justify-end px-4 md:px-20 bg-gradient-to-t from-black via-transparent to-transparent">
+        {/* Section 5: AI Lab */}
+        <section id="ai" className="h-screen w-full flex items-center justify-end px-4 md:px-20 bg-gradient-to-t from-black via-transparent to-transparent">
              <div className="w-full md:w-1/2 max-w-xl bg-black/80 backdrop-blur-md p-8 border-t border-[#00FF41] rounded-tl-3xl">
                 <h2 className="text-3xl font-bold mb-6 flex items-center gap-3">
                     <span className="w-3 h-3 bg-red-500 rounded-full animate-pulse"></span>
@@ -413,7 +417,7 @@ export default function Home() {
 
       </div>
 
-      {/* 5. 儀表板彈窗 (Invest Dashboard) */}
+      {/* 5. 儀表板彈窗 (維持不變) */}
       {showDashboard && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/80 backdrop-blur-lg animate-fade-in">
             <div className="bg-[#0a0a0a] border border-white/10 w-full max-w-4xl rounded-3xl p-6 md:p-10 relative shadow-2xl overflow-y-auto max-h-[90vh]">
@@ -428,9 +432,7 @@ export default function Home() {
                     <span className="text-[#00FF41]">●</span> 投資組合詳細分析
                 </h2>
 
-                {/* 模擬圖表區塊 */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-                    {/* 這裡模擬你截圖中的圓餅圖 */}
                     {[
                         { title: "配息佔比", val: "7.0%", color: "border-orange-500" },
                         { title: "股債比例", val: "40:60", color: "border-blue-500" },
@@ -446,7 +448,6 @@ export default function Home() {
                     ))}
                 </div>
 
-                {/* 模擬表格 */}
                 <div className="bg-white/5 rounded-2xl p-6 overflow-x-auto">
                     <table className="w-full text-left text-sm text-gray-300">
                         <thead className="text-gray-500 border-b border-white/10">
