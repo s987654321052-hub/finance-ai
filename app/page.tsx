@@ -19,20 +19,32 @@ function MorphingParticles({ shape }: { shape: string }) {
   const mesh = useRef<THREE.Points>(null);
   const geoRef = useRef<THREE.BufferGeometry>(null);
 
-  const { spherePositions, gridPositions } = useMemo(() => {
+  const { spherePositions, gridPositions, dnaPositions } = useMemo(() => {
     const sphere = new Float32Array(count * 3);
     const grid = new Float32Array(count * 3);
+    const dna = new Float32Array(count * 3);
+
     for (let i = 0; i < count; i++) {
+      // 球體計算 (保留原本)
       const phi = Math.acos(-1 + (2 * i) / count);
       const theta = Math.sqrt(count * Math.PI) * phi;
       sphere[i * 3] = Math.cos(theta) * Math.sin(phi) * 2;
       sphere[i * 3 + 1] = Math.sin(theta) * Math.sin(phi) * 2;
       sphere[i * 3 + 2] = Math.cos(phi) * 2;
+
+      // 網格計算 (保留原本)
       grid[i * 3] = (i % 40) * 0.15 - 3;
       grid[i * 3 + 1] = Math.floor(i / 40) * 0.15 - 2;
       grid[i * 3 + 2] = 0;
+
+      // DNA 螺旋計算 (新增)
+      const t = (i / count) * Math.PI * 4; // 螺旋旋轉圈數
+      const side = i % 2 === 0 ? 1 : -1; // 分成兩條鏈
+      dna[i * 3] = Math.cos(t) * 0.8 * side; 
+      dna[i * 3 + 1] = (i / count) * 4 - 2; // 垂直分布
+      dna[i * 3 + 2] = Math.sin(t) * 0.8 * side;
     }
-    return { spherePositions: sphere, gridPositions: grid };
+    return { spherePositions: sphere, gridPositions: grid, dnaPositions: dna };
   }, []);
 
   // 初始掛載時手動注入屬性，避開標籤型別檢查
@@ -47,18 +59,24 @@ function MorphingParticles({ shape }: { shape: string }) {
 
   useEffect(() => {
     if (mesh.current) {
-      const target = shape === "sphere" ? spherePositions : gridPositions;
+      // 根據 shape 選擇目標座標
+      let target;
+      if (shape === "sphere") target = spherePositions;
+      else if (shape === "grid") target = gridPositions;
+      else target = dnaPositions; // 預設或 DNA
+
       const currentPos = mesh.current.geometry.attributes.position.array as Float32Array;
+      
       gsap.to(currentPos, {
-        duration: 1.5,
+        duration: 2,
         endArray: target as any,
-        ease: "expo.out",
+        ease: "power3.inOut",
         onUpdate: () => {
           mesh.current!.geometry.attributes.position.needsUpdate = true;
         },
       });
     }
-  }, [shape, spherePositions, gridPositions]);
+  }, [shape, spherePositions, gridPositions, dnaPositions]);
 
   useFrame(() => {
     if (mesh.current) mesh.current.rotation.y += 0.001;
@@ -107,6 +125,7 @@ export default function Home() {
 
       <div className="absolute z-40 bottom-10 left-1/2 -translate-x-1/2 flex gap-4">
         <button onClick={() => setCurrentShape("sphere")} className={`px-6 py-2 rounded-full border text-sm transition-all ${currentShape === "sphere" ? "bg-[#00FF41] text-black font-bold" : "text-[#00FF41] border-[#00FF41]"}`}>首頁</button>
+        <button onClick={() => setCurrentShape("dna")} className={`px-6 py-2 rounded-full border text-sm transition-all ${currentShape === "dna" ? "bg-[#00FF41] text-black font-bold" : "text-[#00FF41] border-[#00FF41]"}`}>核心技術</button>
         <button onClick={() => setCurrentShape("grid")} className={`px-6 py-2 rounded-full border text-sm transition-all ${currentShape === "grid" ? "bg-[#00FF41] text-black font-bold" : "text-[#00FF41] border-[#00FF41]"}`}>理財智庫</button>
       </div>
 
