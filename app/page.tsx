@@ -43,7 +43,7 @@ function MorphingParticles({ shape }: { shape: string }) {
       
       gsap.to(currentPos, {
         duration: 1.5, // 縮短時間，增加流暢感
-        endArray: target,
+        endArray: target as any,
         ease: "expo.out",
         onUpdate: () => {
           mesh.current!.geometry.attributes.position.needsUpdate = true;
