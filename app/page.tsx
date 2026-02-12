@@ -5,7 +5,6 @@ import * as THREE from "three";
 import { gsap } from "gsap";
 import { OrbitControls, Stars } from "@react-three/drei";
 
-// 1. 抽離資料，避免重複渲染
 const financeData = [
   { category: "STOCKS & FUNDS", title: "市場洞察與佈局", content: "結合 AI 趨勢分析與數據建模，精準捕捉市場成長動能。" },
   { category: "BONDS", title: "穩健收益基石", content: "精選高品質債券配置，在動盪市場中構築資產避風港。" },
@@ -15,58 +14,63 @@ const financeData = [
 ];
 
 function MorphingParticles({ shape }: { shape: string }) {
-  const count = 1200;
+  const count = 2000; // 增加點數讓彩色效果更細膩
   const mesh = useRef<THREE.Points>(null);
   const geoRef = useRef<THREE.BufferGeometry>(null);
 
-  const { spherePositions, gridPositions, dnaPositions } = useMemo(() => {
+  // 1. 計算三種形態與彩色數據
+  const { spherePositions, gridPositions, dnaPositions, colors } = useMemo(() => {
     const sphere = new Float32Array(count * 3);
     const grid = new Float32Array(count * 3);
     const dna = new Float32Array(count * 3);
+    const colors = new Float32Array(count * 3);
+    const colorObj = new THREE.Color();
 
     for (let i = 0; i < count; i++) {
-      // 球體計算 (保留原本)
+      // 球體
       const phi = Math.acos(-1 + (2 * i) / count);
       const theta = Math.sqrt(count * Math.PI) * phi;
-      sphere[i * 3] = Math.cos(theta) * Math.sin(phi) * 2;
-      sphere[i * 3 + 1] = Math.sin(theta) * Math.sin(phi) * 2;
-      sphere[i * 3 + 2] = Math.cos(phi) * 2;
+      sphere[i * 3] = Math.cos(theta) * Math.sin(phi) * 2.5;
+      sphere[i * 3 + 1] = Math.sin(theta) * Math.sin(phi) * 2.5;
+      sphere[i * 3 + 2] = Math.cos(phi) * 2.5;
 
-      // 網格計算 (保留原本)
-      grid[i * 3] = (i % 40) * 0.15 - 3;
-      grid[i * 3 + 1] = Math.floor(i / 40) * 0.15 - 2;
+      // 網格
+      grid[i * 3] = (i % 50) * 0.15 - 3.75;
+      grid[i * 3 + 1] = Math.floor(i / 50) * 0.15 - 3;
       grid[i * 3 + 2] = 0;
 
-      // DNA 螺旋計算 (新增)
-      const t = (i / count) * Math.PI * 4; // 螺旋旋轉圈數
-      const side = i % 2 === 0 ? 1 : -1; // 分成兩條鏈
-      dna[i * 3] = Math.cos(t) * 0.8 * side; 
-      dna[i * 3 + 1] = (i / count) * 4 - 2; // 垂直分布
+      // DNA (彩色影片核心)
+      const t = (i / count) * Math.PI * 6;
+      const side = i % 2 === 0 ? 1 : -1;
+      dna[i * 3] = Math.cos(t) * 0.8 * side;
+      dna[i * 3 + 1] = (i / count) * 6 - 3;
       dna[i * 3 + 2] = Math.sin(t) * 0.8 * side;
+
+      // 顏色設定：從青色到紫色的漸層
+      const pct = i / count;
+      colorObj.setHSL(0.5 + pct * 0.3, 0.8, 0.5); 
+      colors[i * 3] = colorObj.r;
+      colors[i * 3 + 1] = colorObj.g;
+      colors[i * 3 + 2] = colorObj.b;
     }
-    return { spherePositions: sphere, gridPositions: grid, dnaPositions: dna };
+    return { spherePositions: sphere, gridPositions: grid, dnaPositions: dna, colors };
   }, []);
 
-  // 初始掛載時手動注入屬性，避開標籤型別檢查
   useEffect(() => {
     if (geoRef.current) {
-      geoRef.current.setAttribute(
-        'position',
-        new THREE.BufferAttribute(spherePositions, 3)
-      );
+      geoRef.current.setAttribute('position', new THREE.BufferAttribute(spherePositions, 3));
+      geoRef.current.setAttribute('color', new THREE.BufferAttribute(colors, 3));
     }
-  }, [spherePositions]);
+  }, [spherePositions, colors]);
 
   useEffect(() => {
     if (mesh.current) {
-      // 根據 shape 選擇目標座標
       let target;
       if (shape === "sphere") target = spherePositions;
       else if (shape === "grid") target = gridPositions;
-      else target = dnaPositions; // 預設或 DNA
+      else target = dnaPositions;
 
       const currentPos = mesh.current.geometry.attributes.position.array as Float32Array;
-      
       gsap.to(currentPos, {
         duration: 2,
         endArray: target as any,
@@ -78,18 +82,23 @@ function MorphingParticles({ shape }: { shape: string }) {
     }
   }, [shape, spherePositions, gridPositions, dnaPositions]);
 
-  useFrame(() => {
-    if (mesh.current) mesh.current.rotation.y += 0.001;
+  useFrame((state) => {
+    if (mesh.current) {
+      mesh.current.rotation.y += 0.002;
+      // 微小的滑鼠視差效果
+      mesh.current.rotation.x = THREE.MathUtils.lerp(mesh.current.rotation.x, state.mouse.y * 0.2, 0.05);
+    }
   });
 
   return (
     <points ref={mesh}>
       <bufferGeometry ref={geoRef} />
       <pointsMaterial 
-        size={0.035} 
-        color="#00FF41" 
+        size={0.04} 
+        vertexColors={true} // 開啟頂點色彩
         transparent={true} 
-        opacity={0.6} 
+        opacity={0.8} 
+        blending={THREE.AdditiveBlending} // 發光效果
         sizeAttenuation={true} 
       />
     </points>
@@ -99,42 +108,56 @@ function MorphingParticles({ shape }: { shape: string }) {
 export default function Home() {
   const [currentShape, setCurrentShape] = useState("sphere");
 
-  return (
-    <main className="relative h-screen w-full bg-[#05070a] overflow-hidden font-sans">
-      {/* 輕量化 UI：移除 backdrop-blur，改用 rgba 背景 */}
-      <div className="absolute z-20 top-10 left-10 pointer-events-none">
-        <h1 className="text-3xl font-bold text-white drop-shadow-md">
-          {currentShape === "sphere" ? "用 AI 驅動理財" : "跨界理財方案"}
-        </h1>
-        <p className="text-[#00FF41] text-xs tracking-[0.3em] mt-1">FINANCE • AI • COMMUNITY</p>
-      </div>
+  // 監聽捲動事件自動切換形態
+  useEffect(() => {
+    const handleScroll = () => {
+      const scrollPercent = window.scrollY / (document.documentElement.scrollHeight - window.innerHeight);
+      if (scrollPercent < 0.3) setCurrentShape("sphere");
+      else if (scrollPercent < 0.7) setCurrentShape("dna");
+      else setCurrentShape("grid");
+    };
+    window.addEventListener("scroll", handleScroll);
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
 
-      {currentShape === "grid" && (
-        <div className="absolute z-30 inset-0 flex items-center justify-center p-8 bg-black/60">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 max-w-5xl">
-            {financeData.map((item, index) => (
-              <div key={index} className="bg-[#111] border border-white/10 p-5 rounded-xl hover:border-[#00FF41] transition-colors">
-                <div className="text-[#00FF41] text-[10px] mb-1 opacity-50">{item.category}</div>
-                <h3 className="text-white text-lg font-bold mb-2">{item.title}</h3>
-                <p className="text-gray-400 text-xs leading-relaxed">{item.content}</p>
+  return (
+    <main className="relative bg-[#05070a] font-sans">
+      {/* 增加頁面高度以產生捲動感 */}
+      <div className="h-[300vh] w-full">
+        {/* 固定背景 Canvas */}
+        <div className="fixed inset-0 z-0">
+          <Canvas camera={{ position: [0, 0, 8] }}>
+            <color attach="background" args={["#05070a"]} />
+            <Stars radius={100} count={3000} factor={4} fade />
+            <MorphingParticles shape={currentShape} />
+            <OrbitControls enableZoom={false} />
+          </Canvas>
+        </div>
+
+        {/* UI 內容疊層 */}
+        <section className="relative z-10 h-screen flex flex-col items-center justify-center pointer-events-none">
+          <h1 className="text-5xl font-bold text-white mb-2">用 AI 驅動理財</h1>
+          <p className="text-[#00FF41] tracking-[0.5em]">FINANCE • AI • FUTURE</p>
+          <p className="text-gray-500 mt-20 animate-bounce">往下捲動探索</p>
+        </section>
+
+        <section className="relative z-10 h-screen flex flex-col items-center justify-center">
+          <h2 className="text-4xl font-bold text-white mb-4">核心進化技術</h2>
+          <p className="text-gray-400 max-w-md text-center">如同 DNA 般精密的運算法則，為您的資產注入成長基因。</p>
+        </section>
+
+        <section className="relative z-10 h-screen flex items-center justify-center p-8">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-6xl pointer-events-auto">
+            {financeData.slice(0, 3).map((item, index) => (
+              <div key={index} className="bg-black/40 border border-white/10 p-8 rounded-2xl backdrop-blur-md hover:border-[#00FF41] transition-all group">
+                <div className="text-[#00FF41] text-xs mb-2">{item.category}</div>
+                <h3 className="text-white text-xl font-bold mb-4">{item.title}</h3>
+                <p className="text-gray-400 text-sm">{item.content}</p>
               </div>
             ))}
           </div>
-        </div>
-      )}
-
-      <div className="absolute z-40 bottom-10 left-1/2 -translate-x-1/2 flex gap-4">
-        <button onClick={() => setCurrentShape("sphere")} className={`px-6 py-2 rounded-full border text-sm transition-all ${currentShape === "sphere" ? "bg-[#00FF41] text-black font-bold" : "text-[#00FF41] border-[#00FF41]"}`}>首頁</button>
-        <button onClick={() => setCurrentShape("dna")} className={`px-6 py-2 rounded-full border text-sm transition-all ${currentShape === "dna" ? "bg-[#00FF41] text-black font-bold" : "text-[#00FF41] border-[#00FF41]"}`}>核心技術</button>
-        <button onClick={() => setCurrentShape("grid")} className={`px-6 py-2 rounded-full border text-sm transition-all ${currentShape === "grid" ? "bg-[#00FF41] text-black font-bold" : "text-[#00FF41] border-[#00FF41]"}`}>理財智庫</button>
+        </section>
       </div>
-
-      <Canvas camera={{ position: [0, 0, 7] }} dpr={[1, 2]}> {/* 限制像素比，優化效能 */}
-        <color attach="background" args={["#05070a"]} />
-        <Stars radius={100} count={2000} factor={4} fade />
-        <MorphingParticles shape={currentShape} />
-        <OrbitControls enableZoom={false} />
-      </Canvas>
     </main>
   );
 }
