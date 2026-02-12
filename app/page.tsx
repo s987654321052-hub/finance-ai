@@ -15,10 +15,10 @@ const financeData = [
 ];
 
 function MorphingParticles({ shape }: { shape: string }) {
-  const count = 1200; // 輕量化：減少點數
+  const count = 1200;
   const mesh = useRef<THREE.Points>(null);
+  const geoRef = useRef<THREE.BufferGeometry>(null);
 
-  // 優化：只計算一次座標
   const { spherePositions, gridPositions } = useMemo(() => {
     const sphere = new Float32Array(count * 3);
     const grid = new Float32Array(count * 3);
@@ -28,7 +28,6 @@ function MorphingParticles({ shape }: { shape: string }) {
       sphere[i * 3] = Math.cos(theta) * Math.sin(phi) * 2;
       sphere[i * 3 + 1] = Math.sin(theta) * Math.sin(phi) * 2;
       sphere[i * 3 + 2] = Math.cos(phi) * 2;
-
       grid[i * 3] = (i % 40) * 0.15 - 3;
       grid[i * 3 + 1] = Math.floor(i / 40) * 0.15 - 2;
       grid[i * 3 + 2] = 0;
@@ -36,13 +35,22 @@ function MorphingParticles({ shape }: { shape: string }) {
     return { spherePositions: sphere, gridPositions: grid };
   }, []);
 
+  // 初始掛載時手動注入屬性，避開標籤型別檢查
+  useEffect(() => {
+    if (geoRef.current) {
+      geoRef.current.setAttribute(
+        'position',
+        new THREE.BufferAttribute(spherePositions, 3)
+      );
+    }
+  }, [spherePositions]);
+
   useEffect(() => {
     if (mesh.current) {
       const target = shape === "sphere" ? spherePositions : gridPositions;
       const currentPos = mesh.current.geometry.attributes.position.array as Float32Array;
-      
       gsap.to(currentPos, {
-        duration: 1.5, // 縮短時間，增加流暢感
+        duration: 1.5,
         endArray: target as any,
         ease: "expo.out",
         onUpdate: () => {
@@ -53,19 +61,12 @@ function MorphingParticles({ shape }: { shape: string }) {
   }, [shape, spherePositions, gridPositions]);
 
   useFrame(() => {
-    if (mesh.current) mesh.current.rotation.y += 0.001; // 減慢轉速，降低渲染壓力
+    if (mesh.current) mesh.current.rotation.y += 0.001;
   });
 
   return (
     <points ref={mesh}>
-      <bufferGeometry>
-        <bufferAttribute
-          attach="attributes-position"
-          count={count}
-          array={spherePositions as any}
-          itemSize={3}
-        />
-      </bufferGeometry>
+      <bufferGeometry ref={geoRef} />
       <pointsMaterial 
         size={0.035} 
         color="#00FF41" 
