@@ -62,7 +62,7 @@ function MorphingParticles({ shape }: { shape: string }) {
         <bufferAttribute
           attach="attributes-position"
           count={count}
-          array={spherePositions}
+          array={spherePositions as any}
           itemSize={3}
         />
       </bufferGeometry>
