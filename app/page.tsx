@@ -57,24 +57,23 @@ function MorphingParticles({ shape }: { shape: string }) {
   });
 
   return (
-    {/* 修正後的粒子渲染區塊 */}
-<points ref={mesh}>
-  <bufferGeometry>
-    <bufferAttribute
-      attach="attributes-position"
-      count={count}
-      array={spherePositions}
-      itemSize={3}
-    />
-  </bufferGeometry>
-  <pointsMaterial 
-    size={0.035} 
-    color="#00FF41" 
-    transparent={true} 
-    opacity={0.6} 
-    sizeAttenuation={true} 
-  />
-</points>
+    <points ref={mesh}>
+      <bufferGeometry>
+        <bufferAttribute
+          attach="attributes-position"
+          count={count}
+          array={spherePositions}
+          itemSize={3}
+        />
+      </bufferGeometry>
+      <pointsMaterial 
+        size={0.035} 
+        color="#00FF41" 
+        transparent={true} 
+        opacity={0.6} 
+        sizeAttenuation={true} 
+      />
+    </points>
   );
 }
 
