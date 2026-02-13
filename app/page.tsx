@@ -238,7 +238,7 @@ function StockTicker() {
   ]);
 
   // 這裡是你的 Google Apps Script 網址 (請換成你剛剛複製的那一串！)
-  const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxXab8-1UMzKkPa88T9gzDAAXJUoiNt6bfDJzPNfw9pK13KoeCPhXDOLkBGu3e1o8Te/exec";
+  const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxXab8-1UMzKkPa88T9gzDAAXJUoiNt6bfDJzPNfw9pK13KoeCPhXDOLkBGu3e1o8Te/exechttps://script.google.com/macros/s/AKfycbxXab8-1UMzKkPa88T9gzDAAXJUoiNt6bfDJzPNfw9pK13KoeCPhXDOLkBGu3e1o8Te/exec";
 
   useEffect(() => {
     // 定義抓取資料的函式
