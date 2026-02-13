@@ -1,5 +1,5 @@
 "use client";
-import { Canvas, useFrame } from "@react-three/fiber";
+import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { useMemo, useRef, useState, useEffect } from "react";
 import * as THREE from "three";
 import { gsap } from "gsap";
@@ -15,8 +15,8 @@ const SECTIONS = [
   { id: "ai", title: "AI Lab", sub: "智能運算實驗室" },
 ];
 
-// 股市跑馬燈資料
-const STOCK_DATA = [
+// 預設股票資料 (當 API 還在跑的時候先顯示這個，解決延遲感)
+const DEFAULT_STOCK_DATA = [
   { symbol: "NVDA", price: "726.50", change: "+2.5%", up: true },
   { symbol: "TSLA", price: "198.20", change: "-1.2%", up: false },
   { symbol: "AAPL", price: "182.40", change: "+0.8%", up: true },
@@ -88,19 +88,20 @@ function MorphingParticles({ shape }: { shape: string }) {
   const count = 3000;
   const mesh = useRef<THREE.Points>(null);
   const geoRef = useRef<THREE.BufferGeometry>(null);
+  
+  // 用來儲存粒子的「原始目標位置」，方便滑鼠移開後彈回去
+  const originalPositions = useRef<Float32Array | null>(null);
 
-  // 將 matrix 改為 chip
+  // 計算所有形態的點位
   const { sphere, wave, ring, globe, chip, colors } = useMemo(() => {
     const spherePos = new Float32Array(count * 3);
     const wavePos = new Float32Array(count * 3);
     const ringPos = new Float32Array(count * 3);
     const globePos = new Float32Array(count * 3);
-    // const matrixPos = new Float32Array(count * 3); // 移除舊的
-    const chipPos = new Float32Array(count * 3); // 新增晶片資料
+    const chipPos = new Float32Array(count * 3);
     const cols = new Float32Array(count * 3);
     const colorObj = new THREE.Color();
 
-    // 計算晶片網格的邊長 (根號3000大約是54.7)
     const sideNum = Math.ceil(Math.sqrt(count));
 
     for (let i = 0; i < count; i++) {
@@ -133,34 +134,44 @@ function MorphingParticles({ shape }: { shape: string }) {
       globePos[i * 3 + 1] = Math.sin(gTheta) * Math.sin(gPhi) * 3;
       globePos[i * 3 + 2] = Math.cos(gPhi) * 3;
 
-      // 5. Microchip (晶片) - 全新邏輯
-      // 計算網格行列
+      // 5. Microchip (晶片) - 修正為直立顯示 (X-Y 平面)
       const col = i % sideNum;
       const row = Math.floor(i / sideNum);
       
-      // 將網格映射到 3D 空間座標 (X-Z 平面)
-      const chipX = (col / sideNum - 0.5) * 8; // 寬度範圍 -4 到 4
-      const chipZ = (row / sideNum - 0.5) * 8; // 深度範圍 -4 到 4
-      let chipY = 0; // 預設是扁平的
+      // X: 寬度, Y: 高度 (原本是Z), Z: 厚度 (原本是Y)
+      const cX = (col / sideNum - 0.5) * 6; // 寬度
+      const cY = (row / sideNum - 0.5) * 6; // 高度 (讓它站起來)
+      let cZ = 0; // 預設厚度
 
-      // 增加細節：中心隆起模擬 CPU 核心
-      const centerDist = Math.sqrt(chipX * chipX + chipZ * chipZ);
-      if (centerDist < 1.5) {
-        chipY = 0.5; // 中心突起
+      // 核心邏輯：判斷是否在中心區域
+      const distFromCenter = Math.sqrt(cX * cX + cY * cY);
+      const isCore = distFromCenter < 1.2;
+
+      if (isCore) {
+        cZ = 0.5; // 核心凸起
       } else {
-        // 增加細節：模擬電路板的紋理軌跡 (每隔幾行幾列稍微墊高)
+        // 電路紋理
         if (col % 6 === 0 || row % 6 === 0) {
-            chipY = 0.1; 
+            cZ = 0.1; 
         }
       }
 
-      chipPos[i * 3] = chipX;
-      chipPos[i * 3 + 1] = chipY;
-      chipPos[i * 3 + 2] = chipZ;
+      chipPos[i * 3] = cX;
+      chipPos[i * 3 + 1] = cY;
+      chipPos[i * 3 + 2] = cZ;
 
-      // 顏色
-      const pct = i / count;
-      colorObj.setHSL(0.4 + pct * 0.2, 0.8, 0.6);
+      // 顏色邏輯：如果是晶片核心，給它特別的顏色
+      // 這裡我們預設存一般的顏色，稍後在 useFrame 裡動態處理會比較複雜
+      // 我們直接在這裡把核心顏色寫死進去
+      if (isCore) {
+         // 紅色/金色核心
+         colorObj.setHSL(0.05, 1.0, 0.6); 
+      } else {
+         // 其他部分的漸層
+         const pct = i / count;
+         colorObj.setHSL(0.4 + pct * 0.2, 0.8, 0.6);
+      }
+      
       cols[i * 3] = colorObj.r;
       cols[i * 3 + 1] = colorObj.g;
       cols[i * 3 + 2] = colorObj.b;
@@ -171,11 +182,12 @@ function MorphingParticles({ shape }: { shape: string }) {
         wave: wavePos, 
         ring: ringPos, 
         globe: globePos, 
-        chip: chipPos, // 回傳新的晶片資料
+        chip: chipPos,
         colors: cols 
     };
   }, []);
 
+  // 初始化幾何體
   useEffect(() => {
     if (geoRef.current) {
       geoRef.current.setAttribute('position', new THREE.BufferAttribute(sphere, 3));
@@ -183,6 +195,7 @@ function MorphingParticles({ shape }: { shape: string }) {
     }
   }, [sphere, colors]);
 
+  // 切換形態動畫 (GSAP)
   useEffect(() => {
     if (mesh.current) {
       let target;
@@ -190,9 +203,12 @@ function MorphingParticles({ shape }: { shape: string }) {
         case "company": target = wave; break;
         case "service": target = ring; break;
         case "invest": target = globe; break;
-        case "ai": target = chip; break; // 改為切換到晶片
+        case "ai": target = chip; break;
         default: target = sphere; break;
       }
+
+      // 儲存目前的目標位置，供滑鼠閃避使用
+      originalPositions.current = target;
 
       const currentPos = mesh.current.geometry.attributes.position.array as Float32Array;
       
@@ -205,58 +221,106 @@ function MorphingParticles({ shape }: { shape: string }) {
         },
       });
       
-      // 保持粒子靠左
       gsap.to(mesh.current.position, {
         x: -2.5, 
         duration: 2,
         ease: "power2.inOut"
       });
     }
-  }, [shape, sphere, wave, ring, globe, chip]); // 依賴項加入 chip
+  }, [shape, sphere, wave, ring, globe, chip]);
 
+  // --- 關鍵互動：滑鼠閃避與自轉 ---
   useFrame((state) => {
-    if (mesh.current) {
-      mesh.current.rotation.y += 0.002;
-      mesh.current.rotation.x = THREE.MathUtils.lerp(mesh.current.rotation.x, state.mouse.y * 0.1, 0.05);
-      mesh.current.rotation.y = THREE.MathUtils.lerp(mesh.current.rotation.y, state.mouse.x * 0.1 + (state.clock.elapsedTime * 0.05), 0.05);
+    if (!mesh.current || !geoRef.current || !originalPositions.current) return;
+
+    // 1. 緩慢自轉 (所有形態都適用)
+    // 晶片形態時 (AI)，我們希望它轉得比較有科技感 (Y軸旋轉)
+    if (shape === "ai") {
+        mesh.current.rotation.y += 0.005;
+        // 微微的上下浮動
+        mesh.current.position.y = Math.sin(state.clock.elapsedTime) * 0.1;
+    } else {
+        mesh.current.rotation.y += 0.002;
     }
+    
+    // 視差效果
+    mesh.current.rotation.x = THREE.MathUtils.lerp(mesh.current.rotation.x, state.mouse.y * 0.1, 0.05);
+    
+    // 2. 滑鼠閃避邏輯 (Mouse Dodge)
+    // 為了效能，我們直接操作 buffer array
+    const positions = geoRef.current.attributes.position.array as Float32Array;
+    const originals = originalPositions.current;
+    
+    // 將滑鼠座標轉換為 3D 空間座標 (這是一個簡化估算，假設粒子在 Z=0 附近)
+    // 乘以 10 是因為我們相機在 z=8，視野範圍大約是這個比例
+    const mouseX = (state.mouse.x * 10) - mesh.current.position.x; 
+    const mouseY = (state.mouse.y * 10) - mesh.current.position.y;
+
+    for (let i = 0; i < count; i++) {
+        const px = positions[i * 3];
+        const py = positions[i * 3 + 1];
+        const pz = positions[i * 3 + 2];
+
+        const ox = originals[i * 3];
+        const oy = originals[i * 3 + 1];
+        const oz = originals[i * 3 + 2];
+
+        // 計算粒子與滑鼠的距離
+        const dx = mouseX - px;
+        const dy = mouseY - py;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+
+        // 如果距離小於 2 (影響範圍)，就推開
+        if (dist < 2.0) {
+            const force = (2.0 - dist) * 2.0; // 越近推力越大
+            const angle = Math.atan2(dy, dx);
+            
+            // 往反方向推
+            positions[i * 3]     += (Math.cos(angle + Math.PI) * force * 0.1); 
+            positions[i * 3 + 1] += (Math.sin(angle + Math.PI) * force * 0.1);
+        } else {
+            // 如果沒被推，就緩慢回到原始位置 (Lerp)
+            positions[i * 3]     += (ox - px) * 0.1;
+            positions[i * 3 + 1] += (oy - py) * 0.1;
+            positions[i * 3 + 2] += (oz - pz) * 0.1;
+        }
+    }
+    
+    // 告訴 Three.js 需要更新頂點
+    geoRef.current.attributes.position.needsUpdate = true;
   });
 
   return (
     <points ref={mesh}>
       <bufferGeometry ref={geoRef} />
-      <pointsMaterial size={0.04} vertexColors={true} transparent opacity={0.8} blending={THREE.AdditiveBlending} sizeAttenuation />
+      <pointsMaterial size={0.05} vertexColors={true} transparent opacity={0.8} blending={THREE.AdditiveBlending} sizeAttenuation />
     </points>
   );
 }
 
-// --- 新增組件：股市跑馬燈 ---
+// --- 股市跑馬燈 ---
 function StockTicker() {
-  // 定義狀態：一開始是空的陣列
-  const [tickerData, setTickerData] = useState([
-    { symbol: "LOADING...", price: "---", change: "---", up: true }
-  ]);
+  // 使用預設資料初始化，解決載入延遲問題
+  const [tickerData, setTickerData] = useState(DEFAULT_STOCK_DATA);
 
-  // 這裡是你的 Google Apps Script 網址 (請換成你剛剛複製的那一串！)
-  const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxXab8-1UMzKkPa88T9gzDAAXJUoiNt6bfDJzPNfw9pK13KoeCPhXDOLkBGu3e1o8Te/exechttps://script.google.com/macros/s/AKfycbxXab8-1UMzKkPa88T9gzDAAXJUoiNt6bfDJzPNfw9pK13KoeCPhXDOLkBGu3e1o8Te/exec";
+  // 請填入你的 GAS 網址
+  const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/你的_SCRIPT_ID_在這裡/exec";
 
   useEffect(() => {
-    // 定義抓取資料的函式
     const fetchData = async () => {
       try {
         const response = await fetch(GOOGLE_SCRIPT_URL);
         const data = await response.json();
-        // 成功抓到後，更新狀態
-        setTickerData(data);
+        // 只有當真的抓到資料且格式正確時才更新
+        if (Array.isArray(data) && data.length > 0) {
+            setTickerData(data);
+        }
       } catch (error) {
-        console.error("Error fetching stock data:", error);
-        // 如果失敗，可以設定回預設值，或保持 Loading
+        console.error("Using default data due to fetch error or delay");
       }
     };
 
-    fetchData(); // 執行抓取
-
-    // 選用：每 30 秒自動更新一次 (讓它更像真的看盤軟體)
+    fetchData(); 
     const interval = setInterval(fetchData, 30000);
     return () => clearInterval(interval);
   }, []);
@@ -292,7 +356,7 @@ function StockTicker() {
             </span>
           </div>
         ))}
-        {/* 重複一次以確保無縫銜接感 */}
+         {/* 重複渲染以確保跑馬燈無縫 */}
         {tickerData.map((stock, i) => (
           <div key={`dup-${i}`} className="flex items-center gap-2 text-sm">
             <span className="text-white font-bold">{stock.symbol}</span>
@@ -317,8 +381,6 @@ export default function Home() {
     const handleScroll = () => {
       const scrollY = window.scrollY;
       const h = window.innerHeight;
-      
-      // 調整判斷閾值
       if (scrollY < h * 0.6) setActiveSection("intro");
       else if (scrollY < h * 1.6) setActiveSection("company");
       else if (scrollY < h * 2.6) setActiveSection("service");
@@ -417,7 +479,7 @@ export default function Home() {
           </div>
         </section>
 
-        {/* Section 2: Company (合作夥伴牆) */}
+        {/* Section 2: Company */}
         <section id="company" className="h-screen w-full flex items-center justify-end px-4 md:px-20 bg-gradient-to-b from-transparent to-black/20">
           <div className="w-full md:w-1/2 max-w-xl p-8 bg-white/5 backdrop-blur-xl rounded-3xl border border-white/10 hover:border-[#00FF41]/50 transition-all duration-500">
              <div className="flex items-center gap-4 mb-6">
@@ -432,8 +494,6 @@ export default function Home() {
              <p className="text-gray-300 leading-relaxed mb-6 border-l-2 border-[#00FF41] pl-4">
                {CONTENT_DATA.company.desc}
              </p>
-             
-             {/* 信任牆 - 合作夥伴 Logo */}
              <div className="mt-8 pt-6 border-t border-white/10">
                 <p className="text-xs text-gray-500 uppercase tracking-widest mb-4">Trusted Partners</p>
                 <div className="grid grid-cols-3 gap-3">
@@ -497,7 +557,7 @@ export default function Home() {
             </div>
         </section>
 
-        {/* Section 5: AI Lab (粒子變形為晶片) */}
+        {/* Section 5: AI Lab */}
         <section id="ai" className="h-screen w-full flex items-center justify-end px-4 md:px-20 bg-gradient-to-t from-black via-transparent to-transparent">
              <div className="w-full md:w-1/2 max-w-xl bg-black/80 backdrop-blur-md p-8 border-t border-[#00FF41] rounded-tl-3xl">
                 <h2 className="text-3xl font-bold mb-6 flex items-center gap-3">
@@ -536,10 +596,9 @@ export default function Home() {
 
       </div>
 
-      {/* 底部跑馬燈 */}
       <StockTicker />
 
-      {/* 5. 儀表板彈窗 (維持不變) */}
+      {/* Dashboard Modal */}
       {showDashboard && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/80 backdrop-blur-lg animate-fade-in">
             <div className="bg-[#0a0a0a] border border-white/10 w-full max-w-4xl rounded-3xl p-6 md:p-10 relative shadow-2xl overflow-y-auto max-h-[90vh]">
