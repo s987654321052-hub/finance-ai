@@ -89,14 +89,19 @@ function MorphingParticles({ shape }: { shape: string }) {
   const mesh = useRef<THREE.Points>(null);
   const geoRef = useRef<THREE.BufferGeometry>(null);
 
-  const { sphere, wave, ring, globe, matrix, colors } = useMemo(() => {
+  // 將 matrix 改為 chip
+  const { sphere, wave, ring, globe, chip, colors } = useMemo(() => {
     const spherePos = new Float32Array(count * 3);
     const wavePos = new Float32Array(count * 3);
     const ringPos = new Float32Array(count * 3);
     const globePos = new Float32Array(count * 3);
-    const matrixPos = new Float32Array(count * 3);
+    // const matrixPos = new Float32Array(count * 3); // 移除舊的
+    const chipPos = new Float32Array(count * 3); // 新增晶片資料
     const cols = new Float32Array(count * 3);
     const colorObj = new THREE.Color();
+
+    // 計算晶片網格的邊長 (根號3000大約是54.7)
+    const sideNum = Math.ceil(Math.sqrt(count));
 
     for (let i = 0; i < count; i++) {
       // 1. Sphere
@@ -128,15 +133,30 @@ function MorphingParticles({ shape }: { shape: string }) {
       globePos[i * 3 + 1] = Math.sin(gTheta) * Math.sin(gPhi) * 3;
       globePos[i * 3 + 2] = Math.cos(gPhi) * 3;
 
-      // 5. Matrix
-      matrixPos[i * 3] = (Math.random() - 0.5) * 8; 
-      matrixPos[i * 3 + 1] = (Math.random() - 0.5) * 8; 
-      matrixPos[i * 3 + 2] = (Math.random() - 0.5) * 8; 
-      if (i % 3 === 0) {
-         matrixPos[i * 3] = Math.floor(i / 100) * 0.5 - 4;
-         matrixPos[i * 3 + 1] = (i % 100) * 0.1 - 5;
-         matrixPos[i * 3 + 2] = 0;
+      // 5. Microchip (晶片) - 全新邏輯
+      // 計算網格行列
+      const col = i % sideNum;
+      const row = Math.floor(i / sideNum);
+      
+      // 將網格映射到 3D 空間座標 (X-Z 平面)
+      const chipX = (col / sideNum - 0.5) * 8; // 寬度範圍 -4 到 4
+      const chipZ = (row / sideNum - 0.5) * 8; // 深度範圍 -4 到 4
+      let chipY = 0; // 預設是扁平的
+
+      // 增加細節：中心隆起模擬 CPU 核心
+      const centerDist = Math.sqrt(chipX * chipX + chipZ * chipZ);
+      if (centerDist < 1.5) {
+        chipY = 0.5; // 中心突起
+      } else {
+        // 增加細節：模擬電路板的紋理軌跡 (每隔幾行幾列稍微墊高)
+        if (col % 6 === 0 || row % 6 === 0) {
+            chipY = 0.1; 
+        }
       }
+
+      chipPos[i * 3] = chipX;
+      chipPos[i * 3 + 1] = chipY;
+      chipPos[i * 3 + 2] = chipZ;
 
       // 顏色
       const pct = i / count;
@@ -151,7 +171,7 @@ function MorphingParticles({ shape }: { shape: string }) {
         wave: wavePos, 
         ring: ringPos, 
         globe: globePos, 
-        matrix: matrixPos, 
+        chip: chipPos, // 回傳新的晶片資料
         colors: cols 
     };
   }, []);
@@ -170,7 +190,7 @@ function MorphingParticles({ shape }: { shape: string }) {
         case "company": target = wave; break;
         case "service": target = ring; break;
         case "invest": target = globe; break;
-        case "ai": target = matrix; break;
+        case "ai": target = chip; break; // 改為切換到晶片
         default: target = sphere; break;
       }
 
@@ -185,14 +205,14 @@ function MorphingParticles({ shape }: { shape: string }) {
         },
       });
       
-      // 保持粒子靠左，給右邊文字留空間
+      // 保持粒子靠左
       gsap.to(mesh.current.position, {
         x: -2.5, 
         duration: 2,
         ease: "power2.inOut"
       });
     }
-  }, [shape, sphere, wave, ring, globe, matrix]);
+  }, [shape, sphere, wave, ring, globe, chip]); // 依賴項加入 chip
 
   useFrame((state) => {
     if (mesh.current) {
@@ -369,7 +389,7 @@ export default function Home() {
           </div>
         </section>
 
-        {/* Section 2: Company (新增合作夥伴牆) */}
+        {/* Section 2: Company (合作夥伴牆) */}
         <section id="company" className="h-screen w-full flex items-center justify-end px-4 md:px-20 bg-gradient-to-b from-transparent to-black/20">
           <div className="w-full md:w-1/2 max-w-xl p-8 bg-white/5 backdrop-blur-xl rounded-3xl border border-white/10 hover:border-[#00FF41]/50 transition-all duration-500">
              <div className="flex items-center gap-4 mb-6">
@@ -391,7 +411,6 @@ export default function Home() {
                 <div className="grid grid-cols-3 gap-3">
                     {PARTNERS.map((p, idx) => (
                         <div key={idx} className="bg-black/40 border border-white/5 rounded-md py-2 flex flex-col items-center justify-center hover:bg-white/10 hover:border-[#00FF41]/30 transition-all group cursor-default">
-                            {/* 暫時用文字圖標代替圖片，未來可換 <img /> */}
                             <span className="text-gray-500 font-bold text-xs group-hover:text-white transition-colors">{p.icon}</span>
                             <span className="text-[10px] text-gray-600 group-hover:text-[#00FF41] transition-colors scale-90">{p.name}</span>
                         </div>
@@ -450,7 +469,7 @@ export default function Home() {
             </div>
         </section>
 
-        {/* Section 5: AI Lab */}
+        {/* Section 5: AI Lab (粒子變形為晶片) */}
         <section id="ai" className="h-screen w-full flex items-center justify-end px-4 md:px-20 bg-gradient-to-t from-black via-transparent to-transparent">
              <div className="w-full md:w-1/2 max-w-xl bg-black/80 backdrop-blur-md p-8 border-t border-[#00FF41] rounded-tl-3xl">
                 <h2 className="text-3xl font-bold mb-6 flex items-center gap-3">
@@ -489,7 +508,7 @@ export default function Home() {
 
       </div>
 
-      {/* 底部跑馬燈 (新增) */}
+      {/* 底部跑馬燈 */}
       <StockTicker />
 
       {/* 5. 儀表板彈窗 (維持不變) */}
