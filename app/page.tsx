@@ -232,6 +232,35 @@ function MorphingParticles({ shape }: { shape: string }) {
 
 // --- 新增組件：股市跑馬燈 ---
 function StockTicker() {
+  // 定義狀態：一開始是空的陣列
+  const [tickerData, setTickerData] = useState([
+    { symbol: "LOADING...", price: "---", change: "---", up: true }
+  ]);
+
+  // 這裡是你的 Google Apps Script 網址 (請換成你剛剛複製的那一串！)
+  const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxXab8-1UMzKkPa88T9gzDAAXJUoiNt6bfDJzPNfw9pK13KoeCPhXDOLkBGu3e1o8Te/exec";
+
+  useEffect(() => {
+    // 定義抓取資料的函式
+    const fetchData = async () => {
+      try {
+        const response = await fetch(GOOGLE_SCRIPT_URL);
+        const data = await response.json();
+        // 成功抓到後，更新狀態
+        setTickerData(data);
+      } catch (error) {
+        console.error("Error fetching stock data:", error);
+        // 如果失敗，可以設定回預設值，或保持 Loading
+      }
+    };
+
+    fetchData(); // 執行抓取
+
+    // 選用：每 30 秒自動更新一次 (讓它更像真的看盤軟體)
+    const interval = setInterval(fetchData, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
   return (
     <div className="fixed bottom-0 left-0 w-full bg-black/80 backdrop-blur-md border-t border-white/10 z-50 py-2 overflow-hidden flex items-center">
       <style jsx>{`
@@ -245,7 +274,6 @@ function StockTicker() {
           display: flex;
           gap: 3rem;
         }
-        /* 懸停時暫停，方便閱讀 */
         .animate-marquee:hover {
           animation-play-state: paused;
         }
@@ -255,7 +283,7 @@ function StockTicker() {
         <span className="text-[#00FF41] text-xs font-bold tracking-widest">LIVE</span>
       </div>
       <div className="animate-marquee pl-4">
-        {STOCK_DATA.map((stock, i) => (
+        {tickerData.map((stock, i) => (
           <div key={i} className="flex items-center gap-2 text-sm">
             <span className="text-white font-bold">{stock.symbol}</span>
             <span className="text-gray-400">{stock.price}</span>
@@ -265,7 +293,7 @@ function StockTicker() {
           </div>
         ))}
         {/* 重複一次以確保無縫銜接感 */}
-        {STOCK_DATA.map((stock, i) => (
+        {tickerData.map((stock, i) => (
           <div key={`dup-${i}`} className="flex items-center gap-2 text-sm">
             <span className="text-white font-bold">{stock.symbol}</span>
             <span className="text-gray-400">{stock.price}</span>
