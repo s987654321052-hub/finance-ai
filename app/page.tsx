@@ -15,7 +15,7 @@ const SECTIONS = [
   { id: "ai", title: "AI Lab", sub: "智能運算實驗室" },
 ];
 
-// 預設股票資料 (當 API 還在跑的時候先顯示這個，解決延遲感)
+// 預設股票資料 (無感載入用)
 const DEFAULT_STOCK_DATA = [
   { symbol: "NVDA", price: "726.50", change: "+2.5%", up: true },
   { symbol: "TSLA", price: "198.20", change: "-1.2%", up: false },
@@ -89,10 +89,11 @@ function MorphingParticles({ shape }: { shape: string }) {
   const mesh = useRef<THREE.Points>(null);
   const geoRef = useRef<THREE.BufferGeometry>(null);
   
-  // 用來儲存粒子的「原始目標位置」，方便滑鼠移開後彈回去
+  // 儲存原始位置，用於回彈
   const originalPositions = useRef<Float32Array | null>(null);
+  // 狀態鎖：變形中不進行物理運算，避免衝突
+  const isMorphing = useRef(false);
 
-  // 計算所有形態的點位
   const { sphere, wave, ring, globe, chip, colors } = useMemo(() => {
     const spherePos = new Float32Array(count * 3);
     const wavePos = new Float32Array(count * 3);
@@ -134,25 +135,22 @@ function MorphingParticles({ shape }: { shape: string }) {
       globePos[i * 3 + 1] = Math.sin(gTheta) * Math.sin(gPhi) * 3;
       globePos[i * 3 + 2] = Math.cos(gPhi) * 3;
 
-      // 5. Microchip (晶片) - 修正為直立顯示 (X-Y 平面)
+      // 5. Microchip (晶片) - 直立版 (X-Y 平面)
       const col = i % sideNum;
       const row = Math.floor(i / sideNum);
       
-      // X: 寬度, Y: 高度 (原本是Z), Z: 厚度 (原本是Y)
-      const cX = (col / sideNum - 0.5) * 6; // 寬度
-      const cY = (row / sideNum - 0.5) * 6; // 高度 (讓它站起來)
-      let cZ = 0; // 預設厚度
+      const cX = (col / sideNum - 0.5) * 6; 
+      const cY = (row / sideNum - 0.5) * 6; 
+      let cZ = 0; 
 
-      // 核心邏輯：判斷是否在中心區域
       const distFromCenter = Math.sqrt(cX * cX + cY * cY);
-      const isCore = distFromCenter < 1.2;
+      const isCore = distFromCenter < 1.0;
 
       if (isCore) {
-        cZ = 0.5; // 核心凸起
+        cZ = 0.8; // 核心明顯凸起
       } else {
-        // 電路紋理
         if (col % 6 === 0 || row % 6 === 0) {
-            cZ = 0.1; 
+            cZ = 0.1; // 電路紋理
         }
       }
 
@@ -160,18 +158,13 @@ function MorphingParticles({ shape }: { shape: string }) {
       chipPos[i * 3 + 1] = cY;
       chipPos[i * 3 + 2] = cZ;
 
-      // 顏色邏輯：如果是晶片核心，給它特別的顏色
-      // 這裡我們預設存一般的顏色，稍後在 useFrame 裡動態處理會比較複雜
-      // 我們直接在這裡把核心顏色寫死進去
+      // 顏色初始化 (之後會被 vertexColors 覆蓋，但這裡先設定好基礎)
+      const pct = i / count;
       if (isCore) {
-         // 紅色/金色核心
-         colorObj.setHSL(0.05, 1.0, 0.6); 
+         colorObj.setHSL(0.0, 1.0, 0.5); // 紅色核心
       } else {
-         // 其他部分的漸層
-         const pct = i / count;
-         colorObj.setHSL(0.4 + pct * 0.2, 0.8, 0.6);
+         colorObj.setHSL(0.4 + pct * 0.2, 0.8, 0.6); // 藍綠漸層
       }
-      
       cols[i * 3] = colorObj.r;
       cols[i * 3 + 1] = colorObj.g;
       cols[i * 3 + 2] = colorObj.b;
@@ -187,7 +180,6 @@ function MorphingParticles({ shape }: { shape: string }) {
     };
   }, []);
 
-  // 初始化幾何體
   useEffect(() => {
     if (geoRef.current) {
       geoRef.current.setAttribute('position', new THREE.BufferAttribute(sphere, 3));
@@ -195,7 +187,6 @@ function MorphingParticles({ shape }: { shape: string }) {
     }
   }, [sphere, colors]);
 
-  // 切換形態動畫 (GSAP)
   useEffect(() => {
     if (mesh.current) {
       let target;
@@ -207,18 +198,23 @@ function MorphingParticles({ shape }: { shape: string }) {
         default: target = sphere; break;
       }
 
-      // 儲存目前的目標位置，供滑鼠閃避使用
-      originalPositions.current = target;
+      // 變形開始，鎖定物理
+      isMorphing.current = true;
+      originalPositions.current = target; // 更新目標位置
 
       const currentPos = mesh.current.geometry.attributes.position.array as Float32Array;
       
       gsap.to(currentPos, {
-        duration: 2.5,
+        duration: 2.0,
         endArray: target as any,
         ease: "power3.inOut",
         onUpdate: () => {
           if (mesh.current) mesh.current.geometry.attributes.position.needsUpdate = true;
         },
+        onComplete: () => {
+          // 變形結束，解鎖物理
+          isMorphing.current = false;
+        }
       });
       
       gsap.to(mesh.current.position, {
@@ -229,65 +225,67 @@ function MorphingParticles({ shape }: { shape: string }) {
     }
   }, [shape, sphere, wave, ring, globe, chip]);
 
-  // --- 關鍵互動：滑鼠閃避與自轉 ---
   useFrame((state) => {
     if (!mesh.current || !geoRef.current || !originalPositions.current) return;
 
-    // 1. 緩慢自轉 (所有形態都適用)
-    // 晶片形態時 (AI)，我們希望它轉得比較有科技感 (Y軸旋轉)
+    // 1. 基礎自轉與視差 (始終有效)
     if (shape === "ai") {
-        mesh.current.rotation.y += 0.005;
-        // 微微的上下浮動
-        mesh.current.position.y = Math.sin(state.clock.elapsedTime) * 0.1;
+        mesh.current.rotation.y += 0.003; // 晶片轉慢一點，展示細節
     } else {
-        mesh.current.rotation.y += 0.002;
+        mesh.current.rotation.y += 0.001;
     }
-    
-    // 視差效果
+    // 視差
     mesh.current.rotation.x = THREE.MathUtils.lerp(mesh.current.rotation.x, state.mouse.y * 0.1, 0.05);
-    
-    // 2. 滑鼠閃避邏輯 (Mouse Dodge)
-    // 為了效能，我們直接操作 buffer array
-    const positions = geoRef.current.attributes.position.array as Float32Array;
-    const originals = originalPositions.current;
-    
-    // 將滑鼠座標轉換為 3D 空間座標 (這是一個簡化估算，假設粒子在 Z=0 附近)
-    // 乘以 10 是因為我們相機在 z=8，視野範圍大約是這個比例
-    const mouseX = (state.mouse.x * 10) - mesh.current.position.x; 
-    const mouseY = (state.mouse.y * 10) - mesh.current.position.y;
 
-    for (let i = 0; i < count; i++) {
-        const px = positions[i * 3];
-        const py = positions[i * 3 + 1];
-        const pz = positions[i * 3 + 2];
+    // 2. 物理互動 (僅在變形結束後執行，且修正為彈性磁力效果)
+    if (!isMorphing.current) {
+        const positions = geoRef.current.attributes.position.array as Float32Array;
+        const originals = originalPositions.current;
+        
+        // 取得滑鼠在 3D 空間的大致位置 (投影)
+        const mouseX = (state.mouse.x * 10) - mesh.current.position.x; 
+        const mouseY = (state.mouse.y * 10) - mesh.current.position.y;
 
-        const ox = originals[i * 3];
-        const oy = originals[i * 3 + 1];
-        const oz = originals[i * 3 + 2];
+        for (let i = 0; i < count; i++) {
+            const px = positions[i * 3];
+            const py = positions[i * 3 + 1];
+            // const pz = positions[i * 3 + 2]; // Z軸暫不參與推力計算，保持穩定
 
-        // 計算粒子與滑鼠的距離
-        const dx = mouseX - px;
-        const dy = mouseY - py;
-        const dist = Math.sqrt(dx * dx + dy * dy);
+            const ox = originals[i * 3];
+            const oy = originals[i * 3 + 1];
+            const oz = originals[i * 3 + 2];
 
-        // 如果距離小於 2 (影響範圍)，就推開
-        if (dist < 2.0) {
-            const force = (2.0 - dist) * 2.0; // 越近推力越大
-            const angle = Math.atan2(dy, dx);
+            // 計算粒子到滑鼠的距離
+            const dx = px - mouseX;
+            const dy = py - mouseY;
+            const distSq = dx * dx + dy * dy;
+            const dist = Math.sqrt(distSq);
+
+            // --- 磁力排斥 (Magnet Repulsion) ---
+            // 影響半徑
+            const radius = 2.5; 
             
-            // 往反方向推
-            positions[i * 3]     += (Math.cos(angle + Math.PI) * force * 0.1); 
-            positions[i * 3 + 1] += (Math.sin(angle + Math.PI) * force * 0.1);
-        } else {
-            // 如果沒被推，就緩慢回到原始位置 (Lerp)
-            positions[i * 3]     += (ox - px) * 0.1;
-            positions[i * 3 + 1] += (oy - py) * 0.1;
-            positions[i * 3 + 2] += (oz - pz) * 0.1;
+            if (dist < radius) {
+                // 力量曲線：越近推力越強，邊緣平滑遞減
+                const force = Math.pow((1 - dist / radius), 2) * 3.0; 
+                
+                const angle = Math.atan2(dy, dx);
+                
+                // 將粒子往外推
+                positions[i * 3]     += Math.cos(angle) * force * 0.15;
+                positions[i * 3 + 1] += Math.sin(angle) * force * 0.15;
+            }
+
+            // --- 彈性回歸 (Elastic Return) ---
+            // 這是讓粒子「彈」回去的關鍵。
+            // 0.1 的係數是阻尼，數值越大回彈越快，越小越軟
+            positions[i * 3]     += (ox - positions[i * 3]) * 0.1;
+            positions[i * 3 + 1] += (oy - positions[i * 3 + 1]) * 0.1;
+            positions[i * 3 + 2] += (oz - positions[i * 3 + 2]) * 0.1;
         }
+        
+        geoRef.current.attributes.position.needsUpdate = true;
     }
-    
-    // 告訴 Three.js 需要更新頂點
-    geoRef.current.attributes.position.needsUpdate = true;
   });
 
   return (
@@ -300,26 +298,21 @@ function MorphingParticles({ shape }: { shape: string }) {
 
 // --- 股市跑馬燈 ---
 function StockTicker() {
-  // 使用預設資料初始化，解決載入延遲問題
   const [tickerData, setTickerData] = useState(DEFAULT_STOCK_DATA);
-
-  // 請填入你的 GAS 網址
-  const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/你的_SCRIPT_ID_在這裡/exec";
+  const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbx_YOUR_SCRIPT_ID_HERE/exec"; // 請換成你的 URL
 
   useEffect(() => {
     const fetchData = async () => {
       try {
         const response = await fetch(GOOGLE_SCRIPT_URL);
         const data = await response.json();
-        // 只有當真的抓到資料且格式正確時才更新
         if (Array.isArray(data) && data.length > 0) {
             setTickerData(data);
         }
       } catch (error) {
-        console.error("Using default data due to fetch error or delay");
+        // 失敗時安靜地使用預設值即可
       }
     };
-
     fetchData(); 
     const interval = setInterval(fetchData, 30000);
     return () => clearInterval(interval);
@@ -356,7 +349,6 @@ function StockTicker() {
             </span>
           </div>
         ))}
-         {/* 重複渲染以確保跑馬燈無縫 */}
         {tickerData.map((stock, i) => (
           <div key={`dup-${i}`} className="flex items-center gap-2 text-sm">
             <span className="text-white font-bold">{stock.symbol}</span>
