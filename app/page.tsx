@@ -7,7 +7,6 @@ import { OrbitControls, Stars } from "@react-three/drei";
 
 // --- 資料定義區 ---
 
-// 1. 章節定義 (對應捲動進度與 ID)
 const SECTIONS = [
   { id: "intro", title: "About Me", sub: "個人簡介" },
   { id: "company", title: "Company", sub: "諾億保險經紀人" },
@@ -16,7 +15,28 @@ const SECTIONS = [
   { id: "ai", title: "AI Lab", sub: "智能運算實驗室" },
 ];
 
-// 2. 詳細內容資料
+// 股市跑馬燈資料
+const STOCK_DATA = [
+  { symbol: "NVDA", price: "726.50", change: "+2.5%", up: true },
+  { symbol: "TSLA", price: "198.20", change: "-1.2%", up: false },
+  { symbol: "AAPL", price: "182.40", change: "+0.8%", up: true },
+  { symbol: "BTC", price: "52,100", change: "+3.0%", up: true },
+  { symbol: "TWD/USD", price: "31.4", change: "-0.1%", up: false },
+  { symbol: "0050.TW", price: "145.6", change: "+1.1%", up: true },
+  { symbol: "AMD", price: "178.9", change: "+4.2%", up: true },
+  { symbol: "MSFT", price: "409.5", change: "+0.5%", up: true },
+];
+
+// 合作夥伴 (信任牆) 資料
+const PARTNERS = [
+  { name: "中國信託", icon: "CTBC" },
+  { name: "國泰世華", icon: "CATHAY" },
+  { name: "富邦金控", icon: "FUBON" },
+  { name: "安聯人壽", icon: "ALLIANZ" },
+  { name: "全球人壽", icon: "TRANSGLOBE" },
+  { name: "遠雄人壽", icon: "FGLIFE" },
+];
+
 const CONTENT_DATA = {
   intro: {
     title: "Oliver Chang",
@@ -65,7 +85,7 @@ const CONTENT_DATA = {
 // --- 3D 粒子組件 ---
 
 function MorphingParticles({ shape }: { shape: string }) {
-  const count = 3000; // 粒子數量
+  const count = 3000;
   const mesh = useRef<THREE.Points>(null);
   const geoRef = useRef<THREE.BufferGeometry>(null);
 
@@ -79,14 +99,14 @@ function MorphingParticles({ shape }: { shape: string }) {
     const colorObj = new THREE.Color();
 
     for (let i = 0; i < count; i++) {
-      // 1. Sphere (球體)
+      // 1. Sphere
       const phi = Math.acos(-1 + (2 * i) / count);
       const theta = Math.sqrt(count * Math.PI) * phi;
       spherePos[i * 3] = Math.cos(theta) * Math.sin(phi) * 2.5;
       spherePos[i * 3 + 1] = Math.sin(theta) * Math.sin(phi) * 2.5;
       spherePos[i * 3 + 2] = Math.cos(phi) * 2.5;
 
-      // 2. Wave (海浪)
+      // 2. Wave
       const x = (i / count) * 10 - 5; 
       const y = Math.sin(x * 2) * 0.5 + (Math.random() - 0.5) * 2;
       const z = (i % 20) * 0.2 - 2;
@@ -94,21 +114,21 @@ function MorphingParticles({ shape }: { shape: string }) {
       wavePos[i * 3 + 1] = y;
       wavePos[i * 3 + 2] = z;
 
-      // 3. Ring (圓環)
+      // 3. Ring
       const angle = (i / count) * Math.PI * 2 * 3; 
       const radius = 3 + Math.random() * 0.5;
       ringPos[i * 3] = Math.cos(angle) * radius;
       ringPos[i * 3 + 1] = (i / count) * 4 - 2; 
       ringPos[i * 3 + 2] = Math.sin(angle) * radius;
 
-      // 4. Globe (地球儀)
+      // 4. Globe
       const gPhi = Math.acos(-1 + (2 * i) / count);
       const gTheta = Math.sqrt(count * Math.PI) * gPhi;
       globePos[i * 3] = Math.cos(gTheta) * Math.sin(gPhi) * 3;
       globePos[i * 3 + 1] = Math.sin(gTheta) * Math.sin(gPhi) * 3;
       globePos[i * 3 + 2] = Math.cos(gPhi) * 3;
 
-      // 5. Matrix (矩陣)
+      // 5. Matrix
       matrixPos[i * 3] = (Math.random() - 0.5) * 8; 
       matrixPos[i * 3 + 1] = (Math.random() - 0.5) * 8; 
       matrixPos[i * 3 + 2] = (Math.random() - 0.5) * 8; 
@@ -146,18 +166,16 @@ function MorphingParticles({ shape }: { shape: string }) {
   useEffect(() => {
     if (mesh.current) {
       let target;
-      // 根據形狀決定目標座標
       switch (shape) {
         case "company": target = wave; break;
         case "service": target = ring; break;
         case "invest": target = globe; break;
         case "ai": target = matrix; break;
-        default: target = sphere; break; // 預設為球體 (intro)
+        default: target = sphere; break;
       }
 
       const currentPos = mesh.current.geometry.attributes.position.array as Float32Array;
       
-      // 粒子變形動畫
       gsap.to(currentPos, {
         duration: 2.5,
         endArray: target as any,
@@ -167,7 +185,7 @@ function MorphingParticles({ shape }: { shape: string }) {
         },
       });
       
-      // 修正：粒子位置始終靠左 (-2.5)，不再根據區塊移動，保持左圖右文的平衡
+      // 保持粒子靠左，給右邊文字留空間
       gsap.to(mesh.current.position, {
         x: -2.5, 
         duration: 2,
@@ -192,19 +210,67 @@ function MorphingParticles({ shape }: { shape: string }) {
   );
 }
 
+// --- 新增組件：股市跑馬燈 ---
+function StockTicker() {
+  return (
+    <div className="fixed bottom-0 left-0 w-full bg-black/80 backdrop-blur-md border-t border-white/10 z-50 py-2 overflow-hidden flex items-center">
+      <style jsx>{`
+        @keyframes marquee {
+          0% { transform: translateX(100%); }
+          100% { transform: translateX(-100%); }
+        }
+        .animate-marquee {
+          animation: marquee 30s linear infinite;
+          white-space: nowrap;
+          display: flex;
+          gap: 3rem;
+        }
+        /* 懸停時暫停，方便閱讀 */
+        .animate-marquee:hover {
+          animation-play-state: paused;
+        }
+      `}</style>
+      <div className="flex items-center gap-2 px-4 border-r border-white/20 z-10 bg-black/80">
+        <span className="w-2 h-2 bg-[#00FF41] rounded-full animate-pulse"></span>
+        <span className="text-[#00FF41] text-xs font-bold tracking-widest">LIVE</span>
+      </div>
+      <div className="animate-marquee pl-4">
+        {STOCK_DATA.map((stock, i) => (
+          <div key={i} className="flex items-center gap-2 text-sm">
+            <span className="text-white font-bold">{stock.symbol}</span>
+            <span className="text-gray-400">{stock.price}</span>
+            <span className={`${stock.up ? 'text-green-400' : 'text-red-400'} flex items-center`}>
+              {stock.up ? '▲' : '▼'} {stock.change}
+            </span>
+          </div>
+        ))}
+        {/* 重複一次以確保無縫銜接感 */}
+        {STOCK_DATA.map((stock, i) => (
+          <div key={`dup-${i}`} className="flex items-center gap-2 text-sm">
+            <span className="text-white font-bold">{stock.symbol}</span>
+            <span className="text-gray-400">{stock.price}</span>
+            <span className={`${stock.up ? 'text-green-400' : 'text-red-400'} flex items-center`}>
+              {stock.up ? '▲' : '▼'} {stock.change}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // --- 主頁面組件 ---
 
 export default function Home() {
   const [activeSection, setActiveSection] = useState("intro");
   const [showDashboard, setShowDashboard] = useState(false);
 
-  // 捲動監聽
   useEffect(() => {
     const handleScroll = () => {
       const scrollY = window.scrollY;
       const h = window.innerHeight;
       
-      // 調整判斷閾值，讓切換更靈敏
+      // 調整判斷閾值
       if (scrollY < h * 0.6) setActiveSection("intro");
       else if (scrollY < h * 1.6) setActiveSection("company");
       else if (scrollY < h * 2.6) setActiveSection("service");
@@ -215,7 +281,6 @@ export default function Home() {
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
-  // 平滑捲動功能
   const scrollToSection = (id: string) => {
     const element = document.getElementById(id);
     if (element) {
@@ -224,7 +289,7 @@ export default function Home() {
   };
 
   return (
-    <main className="relative bg-[#05070a] font-sans text-white overflow-x-hidden selection:bg-[#00FF41] selection:text-black">
+    <main className="relative bg-[#05070a] font-sans text-white overflow-x-hidden selection:bg-[#00FF41] selection:text-black pb-12">
       
       {/* 1. 頂部導航 */}
       <nav className="fixed top-0 w-full z-50 bg-black/60 backdrop-blur-md border-b border-white/10 px-6 py-4 flex justify-between items-center transition-all">
@@ -276,7 +341,7 @@ export default function Home() {
         ))}
       </div>
 
-      {/* 4. 內容區塊 (加入 ID 以供跳轉) */}
+      {/* 4. 內容區塊 */}
       <div className="relative z-10">
         
         {/* Section 1: Intro */}
@@ -304,7 +369,7 @@ export default function Home() {
           </div>
         </section>
 
-        {/* Section 2: Company */}
+        {/* Section 2: Company (新增合作夥伴牆) */}
         <section id="company" className="h-screen w-full flex items-center justify-end px-4 md:px-20 bg-gradient-to-b from-transparent to-black/20">
           <div className="w-full md:w-1/2 max-w-xl p-8 bg-white/5 backdrop-blur-xl rounded-3xl border border-white/10 hover:border-[#00FF41]/50 transition-all duration-500">
              <div className="flex items-center gap-4 mb-6">
@@ -319,12 +384,19 @@ export default function Home() {
              <p className="text-gray-300 leading-relaxed mb-6 border-l-2 border-[#00FF41] pl-4">
                {CONTENT_DATA.company.desc}
              </p>
-             <div className="grid grid-cols-3 gap-4 text-center">
-                {CONTENT_DATA.company.tags.map(tag => (
-                    <div key={tag} className="bg-black/30 p-3 rounded-lg text-sm text-gray-300 border border-white/5">
-                        {tag}
-                    </div>
-                ))}
+             
+             {/* 信任牆 - 合作夥伴 Logo */}
+             <div className="mt-8 pt-6 border-t border-white/10">
+                <p className="text-xs text-gray-500 uppercase tracking-widest mb-4">Trusted Partners</p>
+                <div className="grid grid-cols-3 gap-3">
+                    {PARTNERS.map((p, idx) => (
+                        <div key={idx} className="bg-black/40 border border-white/5 rounded-md py-2 flex flex-col items-center justify-center hover:bg-white/10 hover:border-[#00FF41]/30 transition-all group cursor-default">
+                            {/* 暫時用文字圖標代替圖片，未來可換 <img /> */}
+                            <span className="text-gray-500 font-bold text-xs group-hover:text-white transition-colors">{p.icon}</span>
+                            <span className="text-[10px] text-gray-600 group-hover:text-[#00FF41] transition-colors scale-90">{p.name}</span>
+                        </div>
+                    ))}
+                </div>
              </div>
           </div>
         </section>
@@ -416,6 +488,9 @@ export default function Home() {
         </section>
 
       </div>
+
+      {/* 底部跑馬燈 (新增) */}
+      <StockTicker />
 
       {/* 5. 儀表板彈窗 (維持不變) */}
       {showDashboard && (
